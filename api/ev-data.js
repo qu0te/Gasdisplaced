@@ -2,9 +2,7 @@ import Papa from "papaparse";
 
 let cache = null;
 let lastMonth = null;
-
-const EAFO_CSV_URL =
-  "https://alternative-fuels-observatory.ec.europa.eu/system/files/eafo_monthly_ev_registrations.csv";
+const EAFO_CSV_URL = "https://alternative-fuels-observatory.ec.europa.eu/system/files/eafo_monthly_ev_registrations.csv";
 
 function normalizeMonth(year, month) {
   const padded = month.toString().padStart(2, "0");
@@ -12,56 +10,46 @@ function normalizeMonth(year, month) {
 }
 
 async function fetchAndParseEAFO() {
-  const res = await fetch(EAFO_CSV_URL);
-  const text = await res.text();
+  try {
+    const res = await fetch(EAFO_CSV_URL);
+    if (!res.ok) throw new Error("EAFO CSV fetch failed: " + res.status);
 
-  return new Promise((resolve) => {
-    Papa.parse(text, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => resolve(results.data),
+    const text = await res.text();
+    return new Promise((resolve, reject) => {
+      Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => resolve(results.data),
+        error: (err) => reject(err),
+      });
     });
-  });
+  } catch (err) {
+    console.error("Fetch/Parse error:", err);
+    throw err;
+  }
 }
 
 function transformData(rows) {
   const output = {};
 
   rows.forEach((row) => {
-    /**
-     * You MUST adjust these column names
-     * depending on actual EAFO CSV headers.
-     *
-     * Common EAFO headers look like:
-     * Country
-     * Year
-     * Month
-     * Powertrain
-     * Registrations
-     */
+    try {
+      const country = row["Country"] || row["country"];
+      const year = row["Year"] || row["year"];
+      const month = row["Month"] || row["month"];
+      const powertrain = row["Powertrain"] || row["powertrain"];
+      const registrations = parseInt(row["Registrations"] || row["registrations"] || "0");
 
-    const country = row["Country"];
-    const year = row["Year"];
-    const month = row["Month"];
-    const powertrain = row["Powertrain"];
-    const registrations = parseInt(row["Registrations"] || "0");
+      if (!country || !year || !month) return;
+      if (powertrain && powertrain !== "BEV") return;
 
-    if (!country || !year || !month) return;
-
-    // Optional: only count BEV
-    if (powertrain && powertrain !== "BEV") return;
-
-    const key = normalizeMonth(year, month);
-
-    if (!output[country]) {
-      output[country] = {};
+      const key = normalizeMonth(year, month);
+      if (!output[country]) output[country] = {};
+      if (!output[country][key]) output[country][key] = 0;
+      output[country][key] += registrations;
+    } catch (err) {
+      console.error("Row parse error:", row, err);
     }
-
-    if (!output[country][key]) {
-      output[country][key] = 0;
-    }
-
-    output[country][key] += registrations;
   });
 
   return output;
@@ -70,19 +58,18 @@ function transformData(rows) {
 export default async function handler(req, res) {
   const currentMonth = new Date().getMonth();
 
-  if (!cache || lastMonth !== currentMonth) {
-    console.log("Refreshing EAFO data...");
-
-    try {
+  try {
+    if (!cache || lastMonth !== currentMonth) {
+      console.log("Refreshing EAFO data...");
       const rows = await fetchAndParseEAFO();
       cache = transformData(rows);
       lastMonth = currentMonth;
-    } catch (err) {
-      console.error("EAFO fetch failed:", err);
-      return res.status(500).json({ error: "Data fetch failed" });
     }
-  }
 
-  res.setHeader("Cache-Control", "s-maxage=86400");
-  res.status(200).json(cache);
+    res.setHeader("Cache-Control", "s-maxage=86400");
+    return res.status(200).json(cache);
+  } catch (err) {
+    console.error("Handler error:", err);
+    return res.status(500).json({ error: "Serverless function failed", details: err.message });
+  }
 }
