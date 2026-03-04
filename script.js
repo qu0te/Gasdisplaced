@@ -3,7 +3,21 @@ const kmSlider = document.getElementById("kmSlider");
 const fuelValue = document.getElementById("fuelValue");
 const kmValue = document.getElementById("kmValue");
 const ctx = document.getElementById("chart").getContext("2d");
+const resetBtn = document.getElementById("resetBtn");
 
+const DEFAULT_FUEL = 6;
+const DEFAULT_KM = 13500;
+
+resetBtn.onclick = () => {
+  fuelSlider.value = DEFAULT_FUEL;
+  kmSlider.value = DEFAULT_KM;
+
+  fuelValue.textContent = DEFAULT_FUEL;
+  kmValue.textContent = DEFAULT_KM;
+
+  updateChart(currentData);
+};
+let currentData;
 let chart;
 
 // update labels
@@ -12,10 +26,11 @@ kmSlider.oninput   = () => kmValue.textContent   = kmSlider.value;
 
 // main
 async function init() {
-  const data = await fetchEvData();
-  buildChart(data);
-  fuelSlider.onchange = () => updateChart(data);
-  kmSlider.onchange   = () => updateChart(data);
+  currentData = await fetchEvData();
+  buildChart(currentData);
+
+  fuelSlider.onchange = () => updateChart(currentData);
+  kmSlider.onchange   = () => updateChart(currentData);
 }
 
 async function fetchEvData() {
