@@ -1,0 +1,14 @@
+body {
+  max-width: 800px;
+  margin: auto;
+  font-family: Arial, sans-serif;
+}
+
+.controls {
+  margin: 20px 0;
+}
+
+label {
+  display: block;
+  margin-bottom: 12px;
+}
