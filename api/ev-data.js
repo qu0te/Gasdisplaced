@@ -54,7 +54,7 @@ function transformData(rows) {
 
   return output;
 }
-
+ 
 export default async function handler(req, res) {
   const currentMonth = new Date().getMonth();
 
